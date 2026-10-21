@@ -7,6 +7,7 @@ import {signUp, checkSignup, SignupError} from './invites';
 import {sendSignupCode, checkSignupCode} from './email-address';
 import {mailEnabled} from './mail';
 import {sql} from './db';
+import {PUBLIC_ORIGIN} from './config';
 import {settings} from './settings';
 import {requestIp, recordSignIn} from './login-history';
 import {hit, limitApi, RateLimitError} from './ratelimit';
@@ -26,7 +27,7 @@ class XineError extends Error{constructor(message:string,public status=400){supe
 const fail=(message:string,status=400)=>json({error:message},status);
 const string=(v:unknown,max=1000)=>typeof v==='string'?v.slice(0,max):'';
 async function body(req:Request){if(!req.headers.get('content-type')?.startsWith('application/json'))throw new XineError('Send JSON.',415);const bytes=await boundedBody(req,16_384);let b;try{b=JSON.parse(new TextDecoder().decode(bytes))}catch{throw new XineError('Invalid JSON.')}if(!b||typeof b!=='object'||Array.isArray(b))throw new XineError('Invalid JSON.');return b;}
-function sameSite(req:Request){const site=req.headers.get('sec-fetch-site');if(site&&site!=='same-origin'&&site!=='none')return false;const origin=req.headers.get('origin');return !origin||origin===new URL(req.url).origin;}
+function sameSite(req:Request){const site=req.headers.get('sec-fetch-site');if(site&&site!=='same-origin'&&site!=='none')return false;const origin=req.headers.get('origin');return !origin||origin===new URL(req.url).origin||origin===PUBLIC_ORIGIN;}
 async function signed(session:{token:string;csrf:string;userId:string},req:Request){await recordSignIn(req,session);const headers=new Headers({'content-type':'application/json','cache-control':'no-store'});for(const cookie of sessionCookies(session))headers.append('set-cookie',cookie);return new Response(JSON.stringify({ok:true}),{headers});}
 function shapeUser(u:User,v:Viewer){const id=u.id===v.id?'you':String(u.id);return{id,name:u.name,handle:u.screen_name,initials:(u.name||u.screen_name).split(/\s+/).map(s=>s[0]).join('').slice(0,2).toUpperCase(),color:['#c8d5a5','#e9bcad','#b8c9d6','#d5d1c3','#c6d4bb'][Number(BigInt(u.id)%5n)],bio:u.bio||'',following:!!u.stats?.followedByViewer,requested:!!u.stats?.requestedByViewer,followers:Number(u.stats?.followers||0),followingCount:Number(u.stats?.following||0),verified:!!u.verified_type,avatar:u.avatar_url||null,protected:!!u.protected};}
 function shapePost(p:PostRow,v:Viewer){return{id:String(p.id),author:p.author.id===v.id?'you':String(p.author.id),text:p.text,created:new Date(p.created_at).getTime(),likes:Number(p.like_count),reposts:Number(p.repost_count),replyCount:Number(p.reply_count),liked:!!p.liked,reposted:!!p.reposted,saved:!!p.bookmarked,replies:[],tags:[...p.text.matchAll(/#([\p{L}\p{N}_]+)/gu)].map(m=>m[1].toLowerCase()),media:(p.media||[]).map(m=>({id:m.id,url:new URL(mediaUrl(m.id,m.mime)).pathname,kind:m.kind,alt:m.alt_text||''}))};}
