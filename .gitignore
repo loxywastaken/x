@@ -1,0 +1,39 @@
+node_modules/
+.env
+# raw captures: live cookies and password inside
+har-raw/
+# cleaned samples still hold other people's posts
+samples/
+# proprietary client bundle, fetched by script
+client/
+server.log*
+.probe/
+# uploaded files
+media/
+CLAUDE.md
+AGENTS.md
+data/
+realm.env
+deploy/juicebox/verify/
+.DS_Store
+# local and test databases, dumps and Postgres data directories; the schema is
+# src/schema.sql and nothing else of a database belongs in the repository
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.dump
+*.pgdump
+*.backup
+*.bak
+*.sql
+*.sql.gz
+!src/schema.sql
+pgdata/
+postgres-data/
+*.pgdata/
+
+# Local development PostgreSQL and runtime state
+.runtime/

@@ -1,0 +1,266 @@
+import { PUBLIC_ORIGIN } from "./config";
+import { sql } from "./db";
+import { isPeer } from "./federation";
+
+const PROXY = (process.env.EMBED_PROXY ?? "https://cors.estrogen.delivery/").replace(/\/?$/, "/");
+export const proxied = (url: string) => `${PROXY}?url=${encodeURIComponent(url)}`;
+
+const URL_IN_TEXT = /https?:\/\/[^\s<>"]+/g;
+const TRAILING = /[.,!?;:'")\]}>…]+$/u;
+const OWN_HOST = new URL(PUBLIC_ORIGIN).host;
+const MAX_URL = 2048;
+
+export function linksIn(text: string): { url: string; start: number; end: number }[] {
+	const out = [];
+	for (const m of text.matchAll(URL_IN_TEXT)) {
+		let url = m[0].replace(TRAILING, "");
+		const open = (url.match(/\(/g) ?? []).length > (url.match(/\)/g) ?? []).length;
+		if (open && m[0].slice(url.length).startsWith(")")) url += ")";
+		if (url.length > MAX_URL) continue;
+		try {
+			new URL(url);
+		} catch {
+			continue;
+		}
+		const start = [...text.slice(0, m.index)].length;
+		out.push({ url, start, end: start + [...url].length });
+	}
+	return out;
+}
+
+const displayOf = (url: string) => {
+	const bare = url.replace(/^https?:\/\/(www\.)?/, "");
+	return [...bare].length > 26 ? `${[...bare].slice(0, 25).join("")}…` : bare;
+};
+
+export const PEER_STATUS = /^\/[^/]{1,320}\/status\/(\d{1,19})\/?$/;
+
+export function statusLinkOf(url: string): { host: string; id: string } | undefined {
+	try {
+		const u = new URL(url);
+		const id = PEER_STATUS.exec(u.pathname)?.[1];
+		const host = u.host.toLowerCase();
+		return id && /^https?:$/.test(u.protocol) && (host === OWN_HOST || isPeer(host)) ? { host, id } : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function homeLink(url: string, local?: Map<string, string>): string {
+	const known = local?.get(url);
+	if (known) return known;
+	try {
+		const u = new URL(url);
+		const name = /^\/(\w{1,50})\/?$/.exec(u.pathname)?.[1];
+		return name && !u.search && isPeer(u.host.toLowerCase()) ? `${PUBLIC_ORIGIN}/${name}@${u.host.toLowerCase()}` : url;
+	} catch {
+		return url;
+	}
+}
+
+export const urlEntities = (text: string, upTo = Number.POSITIVE_INFINITY, local?: Map<string, string>) =>
+	linksIn(text)
+		.filter((l) => l.end <= upTo)
+		.map((l) => ({ display_url: displayOf(l.url), expanded_url: homeLink(l.url, local), url: l.url, indices: [l.start, l.end] }));
+
+const BARE_DOMAIN = /(?<![\w@#/.:-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|dev|app|zip|lol|me|co|gg|xyz|tv|fm|ai|sh|so|to|cc|ly|is|it|de|fr|uk|eu|es|pt|br|nl|be|ch|at|pl|se|no|fi|dk|cz|ru|jp|kr|cn|in|au|ca|us|info|link|site|online|page|blog|art|moe|social|cafe|club|space|live|tech|codes|systems|computer|neocities|garden|gay|lgbt|wtf|fun|win|pw|nu|ee|lt|lv|ro|hu|gr|tr|il|nz|za|mx|ar|cl)(?:\/[^\s<>"]*)?(?![\w-])/gi;
+
+export function bioEntities(bio: string) {
+	const found = urlEntities(bio);
+	const taken = (start: number, end: number) => found.some((u) => start < u.indices[1] && end > u.indices[0]);
+	for (const m of bio.matchAll(BARE_DOMAIN)) {
+		const text = m[0].replace(TRAILING, "");
+		const start = [...bio.slice(0, m.index)].length;
+		const end = start + [...text].length;
+		if (taken(start, end)) continue;
+		found.push({ display_url: displayOf(text), expanded_url: `https://${text}`, url: `https://${text}`, indices: [start, end] });
+	}
+	return found.sort((a, b) => a.indices[0] - b.indices[0]);
+}
+
+const PRIVATE_HOST = /^(localhost|.*\.local|.*\.internal|.*\.localhost|0\.0\.0\.0|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[.*\])$/i;
+
+export function previewable(url: string): boolean {
+	try {
+		const u = new URL(url);
+		return /^https?:$/.test(u.protocol) && !PRIVATE_HOST.test(u.hostname) && u.host !== OWN_HOST && !u.username && !u.password;
+	} catch {
+		return false;
+	}
+}
+
+export type Preview = { url: string; title: string; description: string; site: string; image: string | null; width: number; height: number };
+
+const decode = (s: string) =>
+	s
+		.replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(Math.min(Number.parseInt(h, 16), 0x10ffff)))
+		.replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Math.min(Number(d), 0x10ffff)))
+		.replace(/&(amp|lt|gt|quot|apos|#39);/g, (_, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'" })[e as string] ?? "")
+		.replace(/\s+/g, " ")
+		.trim();
+
+const clip = (s: string, max: number) => ([...s].length > max ? `${[...s].slice(0, max - 1).join("")}…` : s);
+
+export function parsePreview(url: string, html: string): Preview | undefined {
+	const head = html.slice(0, 300_000);
+	const meta = new Map<string, string>();
+	for (const tag of head.matchAll(/<meta\b[^>]*>/gi)) {
+		const attrs = new Map<string, string>();
+		for (const a of tag[0].matchAll(/([a-z:-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) attrs.set(a[1].toLowerCase(), a[3] ?? a[4] ?? a[5] ?? "");
+		const key = (attrs.get("property") ?? attrs.get("name") ?? "").toLowerCase();
+		const content = attrs.get("content");
+		if (key && content !== undefined && !meta.has(key)) meta.set(key, decode(content));
+	}
+	const titleTag = /<title[^>]*>([^<]*)<\/title>/i.exec(head)?.[1];
+	const title = meta.get("og:title") ?? meta.get("twitter:title") ?? (titleTag ? decode(titleTag) : "");
+	if (!title) return undefined;
+	const rawImage = meta.get("og:image:secure_url") ?? meta.get("og:image") ?? meta.get("twitter:image") ?? meta.get("twitter:image:src");
+	let image: string | null = null;
+	try {
+		const resolved = rawImage ? new URL(rawImage, url).toString() : null;
+		image = resolved && previewable(resolved) && resolved.length <= MAX_URL ? resolved : null;
+	} catch {}
+	const size = (v: string | undefined) => Math.max(0, Math.min(Number.parseInt(v ?? "", 10) || 0, 10_000));
+	return {
+		url,
+		title: clip(title, 200),
+		description: clip(meta.get("og:description") ?? meta.get("twitter:description") ?? meta.get("description") ?? "", 300),
+		site: clip(meta.get("og:site_name") ?? new URL(url).hostname.replace(/^www\./, ""), 80),
+		image,
+		width: size(meta.get("og:image:width")),
+		height: size(meta.get("og:image:height")),
+	};
+}
+
+const MAX_HTML = 1024 * 1024;
+
+async function fetchPage(url: string): Promise<string | undefined> {
+	const res = await fetch(proxied(url), { signal: AbortSignal.timeout(8000), headers: { accept: "text/html,application/xhtml+xml" }, redirect: "follow" }).catch(() => undefined);
+	if (!res?.ok || !/html|xml/i.test(res.headers.get("content-type") ?? "")) {
+		await res?.body?.cancel().catch(() => {});
+		return undefined;
+	}
+	const reader = res.body?.getReader();
+	if (!reader) return undefined;
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	while (size < MAX_HTML) {
+		const { done, value } = await reader.read().catch(() => ({ done: true, value: undefined }));
+		if (done || !value) break;
+		chunks.push(value);
+		size += value.length;
+	}
+	await reader.cancel().catch(() => {});
+	return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, MAX_HTML));
+}
+
+// YouTube answers proxied page fetches with a consent wall, so its videos are
+// described from oEmbed instead, and their cards play the video in place.
+const YOUTUBE_HOST = /^(?:www\.|m\.|music\.)?(?:youtube\.com|youtube-nocookie\.com)$/;
+const YOUTUBE_ID = /^[\w-]{11}$/;
+
+export function youtubeOf(url: string): { id: string; start: number } | undefined {
+	try {
+		const u = new URL(url);
+		const host = u.hostname.toLowerCase();
+		const path = u.pathname.split("/").filter(Boolean);
+		const id =
+			host === "youtu.be" ? path[0] : YOUTUBE_HOST.test(host) ? (path[0] === "watch" ? u.searchParams.get("v") : ["shorts", "embed", "live", "v"].includes(path[0]) ? path[1] : undefined) : undefined;
+		if (!id || !YOUTUBE_ID.test(id)) return undefined;
+		const t = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(u.searchParams.get("t") ?? u.searchParams.get("start") ?? "");
+		const start = t ? Number(t[1] ?? 0) * 3600 + Number(t[2] ?? 0) * 60 + Number(t[3] ?? 0) : 0;
+		return { id, start: Math.min(start, 360_000) };
+	} catch {
+		return undefined;
+	}
+}
+
+async function youtubePreview(url: string, id: string): Promise<Preview | undefined> {
+	const oembed = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`;
+	const res = await fetch(proxied(oembed), { signal: AbortSignal.timeout(8000), headers: { accept: "application/json" } }).catch(() => undefined);
+	if (!res?.ok) {
+		await res?.body?.cancel().catch(() => {});
+		return undefined;
+	}
+	const o: any = await res.json().catch(() => undefined);
+	if (typeof o?.title !== "string" || !o.title) return undefined;
+	return {
+		url,
+		title: clip(decode(o.title), 200),
+		description: typeof o.author_name === "string" ? clip(decode(o.author_name), 300) : "",
+		site: "YouTube",
+		image: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+		width: 480,
+		height: 360,
+	};
+}
+
+const inFlight = new Set<string>();
+const RETRY_FAILED = "1 day";
+const REFRESH = "7 days";
+
+export async function fetchPreview(url: string): Promise<void> {
+	if (!previewable(url) || inFlight.has(url) || inFlight.size > 50) return;
+	inFlight.add(url);
+	try {
+		const youtube = youtubeOf(url);
+		const html = youtube ? undefined : await fetchPage(url);
+		const shell = html && isPeer(new URL(url).host) && !/<meta\b[^>]*og:title/i.test(html.slice(0, 300_000));
+		const p = youtube ? await youtubePreview(url, youtube.id) : html && !shell ? parsePreview(url, html) : undefined;
+		await sql`insert into link_previews (url, ok, title, description, site, image, width, height, fetched_at)
+			values (${url}, ${!!p}, ${p?.title ?? ""}, ${p?.description ?? ""}, ${p?.site ?? ""}, ${p?.image ?? null}, ${p?.width ?? 0}, ${p?.height ?? 0}, now())
+			on conflict (url) do update set ok = excluded.ok, title = excluded.title, description = excluded.description, site = excluded.site,
+				image = excluded.image, width = excluded.width, height = excluded.height, fetched_at = now()`;
+	} catch (e) {
+		console.error("link preview failed:", e instanceof Error ? e.message : e);
+	} finally {
+		inFlight.delete(url);
+	}
+}
+
+export async function previewsFor(urls: string[]): Promise<Map<string, Preview>> {
+	const wanted = [...new Set(urls.filter(previewable))];
+	if (!wanted.length) return new Map();
+	const rows = await sql`select url, ok, title, description, site, image, width, height,
+			fetched_at < now() - (case when ok then ${REFRESH} else ${RETRY_FAILED} end)::interval as stale
+		from link_previews where url = any(${sql.array(wanted, "TEXT")})`;
+	const known = new Map(rows.map((r: any) => [r.url as string, r]));
+	for (const url of wanted) if (!known.has(url) || known.get(url).stale) void fetchPreview(url);
+	return new Map(rows.filter((r: any) => r.ok).map((r: any) => [r.url as string, r as Preview]));
+}
+
+export function linkCard(p: Preview) {
+	const image = p.image ? { url: proxied(p.image), width: p.width || 1200, height: p.height || 630 } : null;
+	const large = !!image && (!p.width || p.width >= 400);
+	const str = (v: string) => ({ string_value: v, type: "STRING" });
+	const img = (v: NonNullable<typeof image>) => ({ image_value: { url: v.url, width: v.width, height: v.height, alt: null }, type: "IMAGE" });
+	const domain = new URL(p.url).hostname.replace(/^www\./, "");
+	const values: Record<string, unknown> = {
+		title: str(p.title),
+		description: str(p.description),
+		domain: str(domain),
+		vanity_url: { ...str(domain), scribe_key: "vanity_url" },
+		card_url: { ...str(p.url), scribe_key: "card_url" },
+	};
+	const youtube = youtubeOf(p.url);
+	if (youtube) {
+		const player = image ?? { url: proxied(`https://i.ytimg.com/vi/${youtube.id}/hqdefault.jpg`), width: 480, height: 360 };
+		values.player_url = str(`https://www.youtube-nocookie.com/embed/${youtube.id}${youtube.start ? `?start=${youtube.start}` : ""}`);
+		values.player_width = str("1280");
+		values.player_height = str("720");
+		for (const key of ["player_image", "player_image_large", "player_image_original"]) values[key] = img(player);
+	}
+	if (image)
+		for (const key of ["thumbnail_image", "thumbnail_image_large", "thumbnail_image_original", "summary_photo_image", "summary_photo_image_large", "summary_photo_image_original", "photo_image_full_size", "photo_image_full_size_large", "photo_image_full_size_original"])
+			values[key] = img(image);
+	return {
+		rest_id: p.url,
+		legacy: {
+			binding_values: Object.entries(values).map(([key, value]) => ({ key, value })),
+			card_platform: { platform: { audience: { name: "production" }, device: { name: "Swift", version: "12" } } },
+			name: youtube ? "player" : large ? "summary_large_image" : "summary",
+			url: p.url,
+			user_refs_results: [],
+		},
+	};
+}

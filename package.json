@@ -1,0 +1,29 @@
+{
+  "name": "xine",
+  "private": true,
+  "version": "1.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "test:unit": "bun scripts/test-unit.ts",
+    "dev": "node scripts/xine-start.mjs --watch",
+    "start": "node scripts/xine-start.mjs",
+    "har:extract": "bun scripts/har-extract.ts",
+    "client:fetch": "bun scripts/fetch-client.ts",
+    "upstream:dev": "bun --watch src/server.ts",
+    "upstream:start": "bun src/server.ts",
+    "test:local": "node --test local/server.test.mjs",
+    "test:backend": "node scripts/xine-test.mjs",
+    "setup": "node scripts/xine-setup.mjs",
+    "db:backup": "node scripts/xine-backup.mjs"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/nodemailer": "6.4.17",
+    "emusks": "^2.3.19"
+  },
+  "dependencies": {
+    "eld": "2.1.0",
+    "nodemailer": "6.9.16"
+  }
+}

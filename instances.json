@@ -1,0 +1,104 @@
+{
+	"version": 1,
+	"sequence": 17,
+	"instances": [
+		{
+			"id": "cro.corvine.vip",
+			"name": "CRO",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "OJiGKsH5eTlfBzKyWCe2G0uHIOESe6QV-9sSmVP-iVk",
+			"state": "active"
+		},
+		{
+			"id": "giggleshitter.gay",
+			"name": "giggleshitter",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "IXb5UsVkUbxH0a_Rub1PEJumKBufBtwwNtM5RZffwB0",
+			"state": "active"
+		},
+		{
+			"id": "jr1.xitter.space",
+			"name": "jr1",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "MtOOU2p-wazLBbp3goandZk5MLD_BPKT9IikJcIFm5c",
+			"state": "active"
+		},
+		{
+			"id": "nidus.fourteentrees.net",
+			"name": "Nidus",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "kgTDVqZmPWxdWqkSo_cuWcYYmkFnk-YqWMz2RYwKY4w",
+			"state": "active"
+		},
+		{
+			"id": "social.opsex.best",
+			"name": "Xitter",
+			"source_url": "https://github.com/gabytz777/xitter",
+			"public_key": "aE7RikVEmC2lKQPAkfVtNk1GpJtx87H7PYaLxHxbZTM",
+			"state": "active"
+		},
+		{
+			"id": "social.pixelatedaria.space",
+			"name": "social.pixelatedaria.space",
+			"source_url": "https://github.com/xittered/xitter",
+			"public_key": "yTE4xnSExcGTOgq_JAhElkvce0vif-MxTZefmy-8IeY",
+			"state": "active"
+		},
+		{
+			"id": "x.glitchprod.xyz",
+			"name": "Digital Circus",
+			"source_url": "https://github.com/MDCYT/xitter",
+			"public_key": "L2-aSa8he-ufDfTVKQdosl2vW0JyWZMiGae3qhTt1a8",
+			"state": "active"
+		},
+		{
+			"id": "x.iambrdn.dev",
+			"name": "xt.brdn",
+			"source_url": "https://github.com/braidenhxyz/xitter-compose",
+			"public_key": "2AbfXEDcr4aaSA5SY6laQbVSfHWvxK1Pbye9A67H3WI",
+			"state": "active"
+		},
+		{
+			"id": "x.transfur.org",
+			"name": "Xitter",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "swH4RzAMdz0qh_yPtNxYG4yJnWAPTgvXyeGjZ8rVGdI",
+			"state": "active"
+		},
+		{
+			"id": "x12.area12.lol",
+			"name": "X12",
+			"source_url": null,
+			"public_key": "BxDn6ty57Wbfp6R8fEk8cGxO8ucUDNfGDiDanyIvUs8",
+			"state": "active"
+		},
+		{
+			"id": "xitt.flex.pm",
+			"name": "Xittor",
+			"source_url": "https://github.com/FlexKleks/xitter",
+			"public_key": "954Dw1wqqWqe4XIXEaMx9wmUUBRiChbbl_vPzahgxfY",
+			"state": "active"
+		},
+		{
+			"id": "xitter.opuadm.com",
+			"name": "Xitter",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "FDWBt_uXkSyKKyM2J_9bYLfryG5N0bHFseMprag-Qv8",
+			"state": "active"
+		},
+		{
+			"id": "xitter.plunkinator.org",
+			"name": "Xitter",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "ovmWzg0FxZlqKk8oaBL6hjK-XGAhUFuh_JnAsW9M8ng",
+			"state": "active"
+		},
+		{
+			"id": "xitter.space",
+			"name": "Xit",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "C_9Cz5GkJjtSvWngLyVhfSTscLdcYo6Omx_EpSzQU5w",
+			"state": "active"
+		}
+	]
+}

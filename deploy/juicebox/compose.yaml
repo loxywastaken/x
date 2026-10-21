@@ -1,0 +1,33 @@
+services:
+  database:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    env_file: ./realm.env
+    volumes:
+      - records:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xitter -d juicebox"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  realm:
+    build: .
+    restart: unless-stopped
+    env_file: ./realm.env
+    command: ["-provider", "postgres", "-port", "8580"]
+    ports:
+      - "127.0.0.1:8580:8580"
+    depends_on:
+      database:
+        condition: service_healthy
+  verify:
+    image: oven/bun:1.4.2
+    profiles: ["verify"]
+    env_file: ./realm.env
+    environment:
+      TEST_JUICEBOX_URL: http://realm:8580/
+    volumes:
+      - ./verify:/work
+    working_dir: /work
+volumes:
+  records:
