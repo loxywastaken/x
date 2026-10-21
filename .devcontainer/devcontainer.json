@@ -1,0 +1,14 @@
+{
+  "name": "Xine with PostgreSQL",
+  "dockerComposeFile": "compose.yaml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "remoteUser": "node",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {"label": "Xine — create your account", "onAutoForward": "openBrowser"}
+  },
+  "postCreateCommand": "bun install --frozen-lockfile && bun scripts/xine-configure.ts",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "shutdownAction": "stopCompose"
+}

@@ -1,0 +1,31 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    environment:
+      DATABASE_URL: postgres://xine@db:5432/xine
+      PORT: '3000'
+      FEDERATION: 'off'
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_USER: xine
+      POSTGRES_DB: xine
+      # Isolated development network; the database port is not published.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - xine-codespaces-db:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U xine -d xine']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+volumes:
+  xine-codespaces-db:

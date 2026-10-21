@@ -2,6 +2,14 @@
 
 An original, responsive X-inspired social interface connected to the real [Xitter](https://github.com/Xittered/xitter) backend. Accounts, password hashes, sessions, posts, replies, likes, reposts, bookmarks, follows, profiles, search, and notifications live in PostgreSQL. There are no shared demo identities in the default app.
 
+## Open on GitHub and create your account
+
+[Open Xine in GitHub Codespaces](https://codespaces.new/loxywastaken/x?ref=main), then create a Codespace. GitHub may require available Codespaces quota or billing; creating the Codespace is your choice. The included development container starts the app and a private PostgreSQL service automatically.
+
+When setup finishes, open **Ports → 3000 → Open in Browser**. On the Xine page, select **Create an account**. Your app password is separate from your GitHub password. You do not need to send either password to anyone. The forwarded port is private by default. Stopping or deleting a Codespace affects availability; retain the database volume or back it up if you need to keep the accounts.
+
+GitHub repository pages and GitHub Pages do not run this backend. The downloadable `xine.html` is only an offline demo; accounts require the running server. The Codespaces configuration has been structurally checked, but a real GitHub Codespace has not been launched from this environment.
+
 ## Start in this workspace
 
 Requires Node.js 20+, Docker, and network access to npm and Docker Hub for first-time setup. Setup installs pinned Bun 1.4.3 alongside the checkout and creates a local PostgreSQL 18 container.
